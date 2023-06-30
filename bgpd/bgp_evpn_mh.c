@@ -1548,9 +1548,9 @@ bgp_evpn_path_es_info_new(struct bgp_path_info *pi, vni_t vni)
 	e = bgp_path_info_extra_get(pi);
 
 	/* If mh_info doesn't exist allocate it */
-	mh_info = e->mh_info;
+	mh_info = e->pevpn->mh_info;
 	if (!mh_info)
-		e->mh_info = mh_info = XCALLOC(MTYPE_BGP_EVPN_PATH_MH_INFO,
+		e->pevpn->mh_info = mh_info = XCALLOC(MTYPE_BGP_EVPN_PATH_MH_INFO,
 					       sizeof(struct bgp_path_mh_info));
 
 	/* If es_info doesn't exist allocate it */
@@ -1604,8 +1604,8 @@ void bgp_evpn_path_es_link(struct bgp_path_info *pi, vni_t vni, esi_t *esi)
 	struct bgp_evpn_es *es;
 	struct bgp *bgp_evpn;
 
-	es_info = (pi->extra && pi->extra->mh_info)
-			  ? pi->extra->mh_info->es_info
+	es_info = (pi->extra && pi->extra->pevpn && pi->extra->pevpn->mh_info)
+			  ? pi->extra->pevpn->mh_info->es_info
 			  : NULL;
 	/* if the esi is zero just unlink the path from the old es */
 	if (!esi || !memcmp(esi, zero_esi, sizeof(*esi))) {
@@ -4670,9 +4670,9 @@ bgp_evpn_path_nh_info_new(struct bgp_path_info *pi)
 	e = bgp_path_info_extra_get(pi);
 
 	/* If mh_info doesn't exist allocate it */
-	mh_info = e->mh_info;
+	mh_info = e->pevpn->mh_info;
 	if (!mh_info)
-		e->mh_info = mh_info = XCALLOC(MTYPE_BGP_EVPN_PATH_MH_INFO,
+		e->pevpn->mh_info = mh_info = XCALLOC(MTYPE_BGP_EVPN_PATH_MH_INFO,
 					       sizeof(struct bgp_path_mh_info));
 
 	/* If nh_info doesn't exist allocate it */
@@ -4738,8 +4738,8 @@ static void bgp_evpn_path_nh_link(struct bgp *bgp_vrf, struct bgp_path_info *pi)
 		return;
 	}
 
-	nh_info = (pi->extra && pi->extra->mh_info)
-			  ? pi->extra->mh_info->nh_info
+	nh_info = (pi->extra && pi->extra->pevpn && pi->extra->pevpn->mh_info)
+			  ? pi->extra->pevpn->mh_info->nh_info
 			  : NULL;
 
 	/* if NHG is not being used for this path we don't need to manage the
@@ -4805,8 +4805,8 @@ void bgp_evpn_path_nh_del(struct bgp *bgp_vrf, struct bgp_path_info *pi)
 {
 	struct bgp_path_evpn_nh_info *nh_info;
 
-	nh_info = (pi->extra && pi->extra->mh_info)
-			  ? pi->extra->mh_info->nh_info
+	nh_info = (pi->extra && pi->extra->pevpn && pi->extra->pevpn->mh_info)
+			  ? pi->extra->pevpn->mh_info->nh_info
 			  : NULL;
 
 	if (!nh_info)

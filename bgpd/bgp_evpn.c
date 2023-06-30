@@ -1918,7 +1918,7 @@ static int update_evpn_route_entry(struct bgp *bgp, struct bgpevpn *vpn,
 
 		/* Mark route as self type-2 route */
 		if (flags && CHECK_FLAG(flags, ZEBRA_MACIP_TYPE_SVI_IP))
-			tmp_pi->extra->af_flags = BGP_EVPN_MACIP_TYPE_SVI_IP;
+			tmp_pi->extra->pevpn->af_flags = BGP_EVPN_MACIP_TYPE_SVI_IP;
 		bgp_path_info_add(dest, tmp_pi);
 	} else {
 		tmp_pi = local_pi;
@@ -2384,7 +2384,7 @@ void bgp_evpn_update_type2_route_entry(struct bgp *bgp, struct bgpevpn *vpn,
 			attr.router_flag = 1;
 	}
 	memcpy(&attr.esi, &local_pi->attr->esi, sizeof(esi_t));
-	bgp_evpn_get_rmac_nexthop(vpn, &evp, &attr, local_pi->extra->af_flags);
+	bgp_evpn_get_rmac_nexthop(vpn, &evp, &attr, local_pi->extra->pevpn->af_flags);
 	vni2label(vpn->vni, &(attr.label));
 	/* Add L3 VNI RTs and RMAC for non IPv6 link-local if
 	 * using L3 VNI for type-2 routes also.

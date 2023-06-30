@@ -145,6 +145,18 @@ struct bgp_sid_info {
 	uint8_t transposition_offset;
 };
 
+/* new structure for EVPN */
+struct bgp_path_info_extra_evpn {
+	/* af specific flags */
+	uint16_t af_flags;
+	union {
+		struct ethaddr mac; /* MAC set here for VNI IP table */
+		struct ipaddr ip;   /* IP set here for VNI MAC table */
+	} vni_info;
+	/* Destination Ethernet Segment links for EVPN MH */
+	struct bgp_path_mh_info *mh_info;
+};
+
 /* Ancillary information to struct bgp_path_info,
  * used for uncommonly used data (aggregation, MPLS, etc.)
  * and lazily allocated to save memory.
@@ -162,6 +174,9 @@ struct bgp_path_info_extra {
 	/* MPLS label(s) - VNI(s) for EVPN-VxLAN  */
 	mpls_label_t label[BGP_MAX_LABELS];
 	uint32_t num_labels;
+
+	/*For EVPN*/
+	struct bgp_path_info_extra_evpn *pevpn;
 
 	/* af specific flags */
 	uint16_t af_flags;

@@ -240,13 +240,17 @@ void bgp_path_info_extra_free(struct bgp_path_info_extra **extra)
 	if (e->aggr_suppressors)
 		list_delete(&e->aggr_suppressors);
 
-	if (e->mh_info)
-		bgp_evpn_path_mh_info_free(e->mh_info);
+	if (e->pevpn && e->pevpn->mh_info)
+		bgp_evpn_path_mh_info_free(e->pevpn->mh_info);
 
 	if ((*extra)->bgp_fs_iprule)
 		list_delete(&((*extra)->bgp_fs_iprule));
 	if ((*extra)->bgp_fs_pbr)
 		list_delete(&((*extra)->bgp_fs_pbr));
+	
+	if (e->pevpn)
+		XFREE(MTYPE_BGP_ROUTE_EXTRA_EVPN, e->pevpn);
+
 	XFREE(MTYPE_BGP_ROUTE_EXTRA, *extra);
 }
 
@@ -257,6 +261,9 @@ struct bgp_path_info_extra *bgp_path_info_extra_get(struct bgp_path_info *pi)
 {
 	if (!pi->extra)
 		pi->extra = bgp_path_info_extra_new();
+	if(!pi->extra->pevpn && pi->net && pi->net->p.family == AF_EVPN)
+		pi->extra->pevpn = XCALLOC(MTYPE_BGP_ROUTE_EXTRA_EVPN,
+		      sizeof(struct bgp_path_info_extra_evpn));
 	return pi->extra;
 }
 
