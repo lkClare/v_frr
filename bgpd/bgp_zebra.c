@@ -2432,7 +2432,12 @@ static int rule_notify_owner(ZAPI_CALLBACK_ARGS)
 			/* link bgp_info to bgp_pbr */
 			path = (struct bgp_path_info *)bgp_pbr->path;
 			extra = bgp_path_info_extra_get(path);
-			listnode_add_force(&extra->bgp_fs_iprule,
+			if(!extra->pfs) {
+				extra->pfs = XCALLOC(MTYPE_BGP_ROUTE_EXTRA_FS, sizeof(struct bgp_path_info_extra_fs));
+				extra->pfs->bgp_fs_iprule = NULL;
+				extra->pfs->bgp_fs_pbr = NULL;
+			}
+			listnode_add_force(&extra->pfs->bgp_fs_iprule,
 					   bgp_pbr);
 		}
 		if (BGP_DEBUG(zebra, ZEBRA))
@@ -2535,7 +2540,12 @@ static int ipset_entry_notify_owner(ZAPI_CALLBACK_ARGS)
 		/* link bgp_path_info to bpme */
 		path = (struct bgp_path_info *)bgp_pbime->path;
 		extra = bgp_path_info_extra_get(path);
-		listnode_add_force(&extra->bgp_fs_pbr, bgp_pbime);
+		if(!extra->pfs) {
+			extra->pfs = XCALLOC(MTYPE_BGP_ROUTE_EXTRA_FS, sizeof(struct bgp_path_info_extra_fs));
+			extra->pfs->bgp_fs_iprule = NULL;
+			extra->pfs->bgp_fs_pbr = NULL;
+		}
+		listnode_add_force(&extra->pfs->bgp_fs_pbr, bgp_pbime);
 		}
 		break;
 	case ZAPI_IPSET_ENTRY_FAIL_REMOVE:

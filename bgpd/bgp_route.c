@@ -188,8 +188,7 @@ static struct bgp_path_info_extra *bgp_path_info_extra_new(void)
 		      sizeof(struct bgp_path_info_extra));
 	new->label[0] = MPLS_INVALID_LABEL;
 	new->num_labels = 0;
-	new->bgp_fs_pbr = NULL;
-	new->bgp_fs_iprule = NULL;
+	new->pfs = NULL;
 	return new;
 }
 
@@ -243,13 +242,15 @@ void bgp_path_info_extra_free(struct bgp_path_info_extra **extra)
 	if (e->pevpn && e->pevpn->mh_info)
 		bgp_evpn_path_mh_info_free(e->pevpn->mh_info);
 
-	if ((*extra)->bgp_fs_iprule)
-		list_delete(&((*extra)->bgp_fs_iprule));
-	if ((*extra)->bgp_fs_pbr)
-		list_delete(&((*extra)->bgp_fs_pbr));
+	if ((*extra)->pfs && (*extra)->pfs->bgp_fs_iprule)
+		list_delete(&((*extra)->pfs->bgp_fs_iprule));
+	if ((*extra)->pfs && (*extra)->pfs->bgp_fs_pbr)
+		list_delete(&((*extra)->pfs->bgp_fs_pbr));
 	
 	if (e->pevpn)
 		XFREE(MTYPE_BGP_ROUTE_EXTRA_EVPN, e->pevpn);
+	if (e->pfs)
+		XFREE(MTYPE_BGP_ROUTE_EXTRA_FS, e->pfs);
 
 	XFREE(MTYPE_BGP_ROUTE_EXTRA, *extra);
 }

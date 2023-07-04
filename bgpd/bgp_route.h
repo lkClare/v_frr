@@ -157,6 +157,14 @@ struct bgp_path_info_extra_evpn {
 	struct bgp_path_mh_info *mh_info;
 };
 
+/* new structure for flowspec*/
+struct bgp_path_info_extra_fs {
+	/* presence of FS pbr firewall based entry */
+	struct list *bgp_fs_pbr;
+	/* presence of FS pbr iprule based entry */
+	struct list *bgp_fs_iprule;
+};
+
 /* Ancillary information to struct bgp_path_info,
  * used for uncommonly used data (aggregation, MPLS, etc.)
  * and lazily allocated to save memory.
@@ -253,6 +261,9 @@ struct bgp_path_info_extra {
 	 * Set nexthop_orig.family to 0 if not valid.
 	 */
 	struct prefix nexthop_orig;
+
+	/* For flowspec*/
+	struct bgp_path_info_extra_fs *pfs;
 	/* presence of FS pbr firewall based entry */
 	struct list *bgp_fs_pbr;
 	/* presence of FS pbr iprule based entry */
