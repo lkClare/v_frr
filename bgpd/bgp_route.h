@@ -165,6 +165,33 @@ struct bgp_path_info_extra_fs {
 	struct list *bgp_fs_iprule;
 };
 
+/* new structure for vrfleak*/
+struct bgp_path_info_extra_vrfleak {
+	void *parent;	    /* parent from global table */
+	/*
+	 * Original bgp instance for imported routes. Needed for:
+	 * 1. Find all routes from a specific vrf for deletion
+	 * 2. vrf context of original nexthop
+	 *
+	 * Store pointer to bgp instance rather than bgp->vrf_id because
+	 * bgp->vrf_id is not always valid (or may change?).
+	 *
+	 * Set to NULL if route is not imported from another bgp instance.
+	 */
+	struct bgp *bgp_orig;
+	/*
+	 * Original bgp session to know if the session is a
+	 * connected EBGP session or not
+	 */
+	struct peer *peer_orig;
+	/*
+	 * Nexthop in context of original bgp instance. Needed
+	 * for label resolution of core mpls routes exported to a vrf.
+	 * Set nexthop_orig.family to 0 if not valid.
+	 */
+	struct prefix nexthop_orig;
+};
+
 /* Ancillary information to struct bgp_path_info,
  * used for uncommonly used data (aggregation, MPLS, etc.)
  * and lazily allocated to save memory.
@@ -264,6 +291,9 @@ struct bgp_path_info_extra {
 
 	/* For flowspec*/
 	struct bgp_path_info_extra_fs *pfs;
+
+	/* For vrfleaking*/
+	struct bgp_path_info_extra_vrfleak *pvrfleak;
 	/* presence of FS pbr firewall based entry */
 	struct list *bgp_fs_pbr;
 	/* presence of FS pbr iprule based entry */

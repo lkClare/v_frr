@@ -2823,7 +2823,9 @@ bgp_create_evpn_bgp_path_info(struct bgp_path_info *parent_pi,
 		       attr_new, dest);
 	SET_FLAG(pi->flags, BGP_PATH_VALID);
 	bgp_path_info_extra_get(pi);
-	pi->extra->parent = bgp_path_info_lock(parent_pi);
+	pi->extra->pvrfleak = XCALLOC(MTYPE_BGP_ROUTE_EXTRA_VRFLEAK,
+		      sizeof(struct bgp_path_info_extra_vrfleak));
+	pi->extra->pvrfleak->parent = bgp_path_info_lock(parent_pi);
 	bgp_dest_lock_node((struct bgp_dest *)parent_pi->net);
 	if (parent_pi->extra) {
 		memcpy(&pi->extra->label, &parent_pi->extra->label,
@@ -2929,8 +2931,8 @@ static int install_evpn_route_entry_in_vrf(struct bgp *bgp_vrf,
 
 	/* Check if route entry is already present. */
 	for (pi = bgp_dest_get_bgp_path_info(dest); pi; pi = pi->next)
-		if (pi->extra
-		    && (struct bgp_path_info *)pi->extra->parent == parent_pi)
+		if (pi->extra && pi->extra->pvrfleak
+		    && (struct bgp_path_info *)pi->extra->pvrfleak->parent == parent_pi)
 			break;
 
 	if (!pi) {
@@ -3025,8 +3027,8 @@ static int install_evpn_route_entry_in_vni_common(
 
 	/* Check if route entry is already present. */
 	for (pi = bgp_dest_get_bgp_path_info(dest); pi; pi = pi->next)
-		if (pi->extra
-		    && (struct bgp_path_info *)pi->extra->parent == parent_pi)
+		if (pi->extra && pi->extra->pvrfleak
+		    && (struct bgp_path_info *)pi->extra->pvrfleak->parent == parent_pi)
 			break;
 
 	if (!pi) {
@@ -3121,8 +3123,8 @@ static int uninstall_evpn_route_entry_in_vni_common(
 
 	/* Find matching route entry. */
 	for (pi = bgp_dest_get_bgp_path_info(dest); pi; pi = pi->next)
-		if (pi->extra &&
-		    (struct bgp_path_info *)pi->extra->parent == parent_pi)
+		if (pi->extra && pi->extra->pvrfleak &&
+		    (struct bgp_path_info *)pi->extra->pvrfleak->parent == parent_pi)
 			break;
 
 	if (!pi)
@@ -3299,8 +3301,8 @@ static int uninstall_evpn_route_entry_in_vrf(struct bgp *bgp_vrf,
 
 	/* Find matching route entry. */
 	for (pi = bgp_dest_get_bgp_path_info(dest); pi; pi = pi->next)
-		if (pi->extra
-		    && (struct bgp_path_info *)pi->extra->parent == parent_pi)
+		if (pi->extra && pi->extra->pvrfleak
+		    && (struct bgp_path_info *)pi->extra->pvrfleak->parent == parent_pi)
 			break;
 
 	if (!pi) {

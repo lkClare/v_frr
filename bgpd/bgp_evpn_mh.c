@@ -185,8 +185,8 @@ static int bgp_evpn_es_route_install(struct bgp *bgp,
 
 	/* Check if route entry is already present. */
 	for (pi = bgp_dest_get_bgp_path_info(dest); pi; pi = pi->next)
-		if (pi->extra &&
-		    (struct bgp_path_info *)pi->extra->parent == parent_pi)
+		if (pi->extra && pi->extra->pvrfleak &&
+		    (struct bgp_path_info *)pi->extra->pvrfleak->parent == parent_pi)
 			break;
 
 	if (!pi) {
@@ -198,7 +198,9 @@ static int bgp_evpn_es_route_install(struct bgp *bgp,
 			       parent_pi->peer, attr_new, dest);
 		SET_FLAG(pi->flags, BGP_PATH_VALID);
 		bgp_path_info_extra_get(pi);
-		pi->extra->parent = bgp_path_info_lock(parent_pi);
+		pi->extra->pvrfleak = XCALLOC(MTYPE_BGP_ROUTE_EXTRA_VRFLEAK,
+		      sizeof(struct bgp_path_info_extra_vrfleak));
+		pi->extra->pvrfleak->parent = bgp_path_info_lock(parent_pi);
 		bgp_dest_lock_node((struct bgp_dest *)parent_pi->net);
 		bgp_path_info_add(dest, pi);
 	} else {
@@ -253,8 +255,8 @@ static int bgp_evpn_es_route_uninstall(struct bgp *bgp, struct bgp_evpn_es *es,
 
 	/* Find matching route entry. */
 	for (pi = bgp_dest_get_bgp_path_info(dest); pi; pi = pi->next)
-		if (pi->extra
-				&& (struct bgp_path_info *)pi->extra->parent ==
+		if (pi->extra && pi->extra->pvrfleak
+				&& (struct bgp_path_info *)pi->extra->pvrfleak->parent ==
 				parent_pi)
 			break;
 
@@ -3163,7 +3165,7 @@ bool bgp_evpn_path_es_use_nhg(struct bgp *bgp_vrf, struct bgp_path_info *pi,
 	*nhg_p = 0;
 
 	/* we don't support NHG for routes leaked from another VRF yet */
-	if (pi->extra && pi->extra->bgp_orig)
+	if (pi->extra && pi->extra->pvrfleak && pi->extra->pvrfleak->bgp_orig)
 		return false;
 
 	parent_pi = get_route_parent_evpn(pi);

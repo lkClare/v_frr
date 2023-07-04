@@ -39,6 +39,7 @@ DEFINE_MTYPE(BGPD, BGP_ROUTE, "BGP route");
 DEFINE_MTYPE(BGPD, BGP_ROUTE_EXTRA, "BGP ancillary route info");
 DEFINE_MTYPE(BGPD, BGP_ROUTE_EXTRA_EVPN, "BGP ancillary route info for EVPN");
 DEFINE_MTYPE(BGPD, BGP_ROUTE_EXTRA_FS, "BGP ancillary route info for flowspec");
+DEFINE_MTYPE(BGPD, BGP_ROUTE_EXTRA_VRFLEAK, "BGP ancillary route info for vrfleaking");
 DEFINE_MTYPE(BGPD, BGP_CONN, "BGP connected");
 DEFINE_MTYPE(BGPD, BGP_STATIC, "BGP static");
 DEFINE_MTYPE(BGPD, BGP_ADVERTISE_ATTR, "BGP adv attr");

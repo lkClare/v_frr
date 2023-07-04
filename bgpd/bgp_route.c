@@ -205,8 +205,8 @@ void bgp_path_info_extra_free(struct bgp_path_info_extra **extra)
 				   e->damp_info->safi);
 
 	e->damp_info = NULL;
-	if (e->parent) {
-		struct bgp_path_info *bpi = (struct bgp_path_info *)e->parent;
+	if (e->pvrfleak && e->pvrfleak->parent) {
+		struct bgp_path_info *bpi = (struct bgp_path_info *)e->pvrfleak->parent;
 
 		if (bpi->net) {
 			/* FIXME: since multiple e may have the same e->parent
@@ -226,12 +226,12 @@ void bgp_path_info_extra_free(struct bgp_path_info_extra **extra)
 				bpi->net = NULL;
 			bgp_path_info_unlock(bpi);
 		}
-		bgp_path_info_unlock(e->parent);
-		e->parent = NULL;
+		bgp_path_info_unlock(e->pvrfleak->parent);
+		e->pvrfleak->parent = NULL;
 	}
 
-	if (e->bgp_orig)
-		bgp_unlock(e->bgp_orig);
+	if (e->pvrfleak && e->pvrfleak->bgp_orig)
+		bgp_unlock(e->pvrfleak->bgp_orig);
 
 	if (e->peer_orig)
 		peer_unlock(e->peer_orig);
@@ -251,6 +251,8 @@ void bgp_path_info_extra_free(struct bgp_path_info_extra **extra)
 		XFREE(MTYPE_BGP_ROUTE_EXTRA_EVPN, e->pevpn);
 	if (e->pfs)
 		XFREE(MTYPE_BGP_ROUTE_EXTRA_FS, e->pfs);
+	if (e->pvrfleak)
+		XFREE(MTYPE_BGP_ROUTE_EXTRA_VRFLEAK, e->pfs);
 
 	XFREE(MTYPE_BGP_ROUTE_EXTRA, *extra);
 }
@@ -578,8 +580,8 @@ struct bgp_path_info *bgp_get_imported_bpi_ultimate(struct bgp_path_info *info)
 		return info;
 
 	for (bpi_ultimate = info;
-	     bpi_ultimate->extra && bpi_ultimate->extra->parent;
-	     bpi_ultimate = bpi_ultimate->extra->parent)
+	     bpi_ultimate->extra && bpi_ultimate->extra->pvrfleak && bpi_ultimate->extra->pvrfleak->parent;
+	     bpi_ultimate = bpi_ultimate->extra->pvrfleak->parent)
 		;
 
 	return bpi_ultimate;
@@ -4782,8 +4784,8 @@ void bgp_update(struct peer *peer, const struct prefix *p, uint32_t addpath_id,
 
 			struct bgp *bgp_nexthop = bgp;
 
-			if (pi->extra && pi->extra->bgp_orig)
-				bgp_nexthop = pi->extra->bgp_orig;
+			if (pi->extra && pi->extra->pvrfleak && pi->extra->pvrfleak->bgp_orig)
+				bgp_nexthop = pi->extra->pvrfleak->bgp_orig;
 
 			nh_afi = BGP_ATTR_NH_AFI(afi, pi->attr);
 
@@ -6433,8 +6435,8 @@ void bgp_static_update(struct bgp *bgp, const struct prefix *p,
 
 				struct bgp *bgp_nexthop = bgp;
 
-				if (pi->extra && pi->extra->bgp_orig)
-					bgp_nexthop = pi->extra->bgp_orig;
+				if (pi->extra && pi->extra->pvrfleak && pi->extra->pvrfleak->bgp_orig)
+					bgp_nexthop = pi->extra->pvrfleak->bgp_orig;
 
 				if (bgp_find_or_add_nexthop(bgp, bgp_nexthop,
 							    afi, safi, pi, NULL,
@@ -9323,26 +9325,26 @@ void route_vty_out(struct vty *vty, const struct prefix *p,
 	 * If vrf id of nexthop is different from that of prefix,
 	 * set up printable string to append
 	 */
-	if (path->extra && path->extra->bgp_orig) {
+	if (path->extra && path->extra->pvrfleak && path->extra->pvrfleak->bgp_orig) {
 		const char *self = "";
 
 		if (nexthop_self)
 			self = "<";
 
 		nexthop_othervrf = true;
-		nexthop_vrfid = path->extra->bgp_orig->vrf_id;
+		nexthop_vrfid = path->extra->pvrfleak->bgp_orig->vrf_id;
 
-		if (path->extra->bgp_orig->vrf_id == VRF_UNKNOWN)
+		if (path->extra->pvrfleak->bgp_orig->vrf_id == VRF_UNKNOWN)
 			snprintf(vrf_id_str, sizeof(vrf_id_str),
 				"@%s%s", VRFID_NONE_STR, self);
 		else
 			snprintf(vrf_id_str, sizeof(vrf_id_str), "@%u%s",
-				 path->extra->bgp_orig->vrf_id, self);
+				 path->extra->pvrfleak->bgp_orig->vrf_id, self);
 
-		if (path->extra->bgp_orig->inst_type
+		if (path->extra->pvrfleak->bgp_orig->inst_type
 		    != BGP_INSTANCE_TYPE_DEFAULT)
 
-			nexthop_vrfname = path->extra->bgp_orig->name;
+			nexthop_vrfname = path->extra->pvrfleak->bgp_orig->name;
 	} else {
 		const char *self = "";
 
@@ -10457,11 +10459,11 @@ void route_vty_out_detail(struct vty *vty, struct bgp *bgp, struct bgp_dest *bn,
 		vty_out(vty, "\n");
 
 
-	if (path->extra && path->extra->parent && !json_paths) {
+	if (path->extra && path->extra->pvrfleak && path->extra->pvrfleak->parent && !json_paths) {
 		struct bgp_path_info *parent_ri;
 		struct bgp_dest *dest, *pdest;
 
-		parent_ri = (struct bgp_path_info *)path->extra->parent;
+		parent_ri = (struct bgp_path_info *)path->extra->pvrfleak->parent;
 		dest = parent_ri->net;
 		if (dest && dest->pdest) {
 			pdest = dest->pdest;
@@ -10764,17 +10766,17 @@ void route_vty_out_detail(struct vty *vty, struct bgp *bgp, struct bgp_dest *bn,
 	/*
 	 * Note when vrfid of nexthop is different from that of prefix
 	 */
-	if (path->extra && path->extra->bgp_orig) {
-		vrf_id_t nexthop_vrfid = path->extra->bgp_orig->vrf_id;
+	if (path->extra && path->extra->pvrfleak && path->extra->pvrfleak->bgp_orig) {
+		vrf_id_t nexthop_vrfid = path->extra->pvrfleak->bgp_orig->vrf_id;
 
 		if (json_paths) {
 			const char *vn;
 
-			if (path->extra->bgp_orig->inst_type
+			if (path->extra->pvrfleak->bgp_orig->inst_type
 			    == BGP_INSTANCE_TYPE_DEFAULT)
 				vn = VRF_DEFAULT_NAME;
 			else
-				vn = path->extra->bgp_orig->name;
+				vn = path->extra->pvrfleak->bgp_orig->name;
 
 			json_object_string_add(json_path, "nhVrfName", vn);
 

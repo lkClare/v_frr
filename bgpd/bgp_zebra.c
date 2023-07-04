@@ -1344,7 +1344,7 @@ void bgp_zebra_announce(struct bgp_dest *dest, const struct prefix *p,
 	/*
 	 * vrf leaking support (will have only one nexthop)
 	 */
-	if (info->extra && info->extra->bgp_orig)
+	if (info->extra && info->extra->pvrfleak && info->extra->pvrfleak->bgp_orig)
 		nh_othervrf = 1;
 
 	/* Make Zebra API structure. */
@@ -1360,8 +1360,8 @@ void bgp_zebra_announce(struct bgp_dest *dest, const struct prefix *p,
 	    && info->sub_type == BGP_ROUTE_IMPORTED) {
 
 		/* Obtain peer from parent */
-		if (info->extra && info->extra->parent)
-			peer = ((struct bgp_path_info *)(info->extra->parent))
+		if (info->extra && info->extra->pvrfleak && info->extra->pvrfleak->parent)
+			peer = ((struct bgp_path_info *)(info->extra->pvrfleak->parent))
 				       ->peer;
 	}
 

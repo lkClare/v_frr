@@ -299,11 +299,11 @@ static inline bool is_route_injectable_into_vpn(struct bgp_path_info *pi)
 	struct bgp_dest *dest;
 
 	if (pi->sub_type != BGP_ROUTE_IMPORTED ||
-	    !pi->extra ||
-	    !pi->extra->parent)
+	    !pi->extra || !pi->extra->pvrfleak ||
+	    !pi->extra->pvrfleak->parent)
 		return true;
 
-	parent_pi = (struct bgp_path_info *)pi->extra->parent;
+	parent_pi = (struct bgp_path_info *)pi->extra->pvrfleak->parent;
 	dest = parent_pi->net;
 	if (!dest)
 		return true;
