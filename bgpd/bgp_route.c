@@ -233,8 +233,8 @@ void bgp_path_info_extra_free(struct bgp_path_info_extra **extra)
 	if (e->pvrfleak && e->pvrfleak->bgp_orig)
 		bgp_unlock(e->pvrfleak->bgp_orig);
 
-	if (e->peer_orig)
-		peer_unlock(e->peer_orig);
+	if (e->pvrfleak && e->pvrfleak->peer_orig)
+		peer_unlock(e->pvrfleak->peer_orig);
 
 	if (e->aggr_suppressors)
 		list_delete(&e->aggr_suppressors);

@@ -1273,7 +1273,7 @@ leak_update(struct bgp *to_bgp, struct bgp_dest *bn,
 
 	if (source_bpi->peer) {
 		extra = bgp_path_info_extra_get(new);
-		extra->peer_orig = peer_lock(source_bpi->peer);
+		extra->pvrfleak->peer_orig = peer_lock(source_bpi->peer);
 	}
 
 	if (nexthop_self_flag)
@@ -1315,7 +1315,7 @@ leak_update(struct bgp *to_bgp, struct bgp_dest *bn,
 	if (bgp_orig)
 		new->extra->pvrfleak->bgp_orig = bgp_lock(bgp_orig);
 	if (nexthop_orig)
-		new->extra->nexthop_orig = *nexthop_orig;
+		new->extra->pvrfleak->nexthop_orig = *nexthop_orig;
 
 	if (leak_update_nexthop_valid(to_bgp, bn, new_attr, afi, safi,
 				      source_bpi, new, bgp_orig, p, debug))
