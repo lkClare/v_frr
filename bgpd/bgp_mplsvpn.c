@@ -1268,7 +1268,8 @@ leak_update(struct bgp *to_bgp, struct bgp_dest *bn,
 			to_bgp->peer_self, new_attr, bn);
 
 	bgp_path_info_extra_get(new);
-	new->extra->pvrfleak = XCALLOC(MTYPE_BGP_ROUTE_EXTRA_VRFLEAK,
+	if(!new->extra->pvrfleak)
+		new->extra->pvrfleak = XCALLOC(MTYPE_BGP_ROUTE_EXTRA_VRFLEAK,
 		      sizeof(struct bgp_path_info_extra_vrfleak));
 
 	if (source_bpi->peer) {

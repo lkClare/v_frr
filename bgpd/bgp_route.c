@@ -252,7 +252,7 @@ void bgp_path_info_extra_free(struct bgp_path_info_extra **extra)
 	if (e->pfs)
 		XFREE(MTYPE_BGP_ROUTE_EXTRA_FS, e->pfs);
 	if (e->pvrfleak)
-		XFREE(MTYPE_BGP_ROUTE_EXTRA_VRFLEAK, e->pfs);
+		XFREE(MTYPE_BGP_ROUTE_EXTRA_VRFLEAK, e->pvrfleak);
 
 	XFREE(MTYPE_BGP_ROUTE_EXTRA, *extra);
 }

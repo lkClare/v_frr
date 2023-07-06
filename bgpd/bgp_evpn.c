@@ -2823,7 +2823,8 @@ bgp_create_evpn_bgp_path_info(struct bgp_path_info *parent_pi,
 		       attr_new, dest);
 	SET_FLAG(pi->flags, BGP_PATH_VALID);
 	bgp_path_info_extra_get(pi);
-	pi->extra->pvrfleak = XCALLOC(MTYPE_BGP_ROUTE_EXTRA_VRFLEAK,
+	if(!pi->extra->pvrfleak)
+		pi->extra->pvrfleak = XCALLOC(MTYPE_BGP_ROUTE_EXTRA_VRFLEAK,
 		      sizeof(struct bgp_path_info_extra_vrfleak));
 	pi->extra->pvrfleak->parent = bgp_path_info_lock(parent_pi);
 	bgp_dest_lock_node((struct bgp_dest *)parent_pi->net);
