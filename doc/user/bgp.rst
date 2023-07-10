@@ -2105,10 +2105,11 @@ Using AS Path in Route Map
    Prepend the existing last AS number (the leftmost ASN) to the AS_PATH.
    The no form of this command removes this set operation from the route-map.
 
-.. clicmd:: set as-path replace <any|ASN>
+.. clicmd:: set as-path replace <any|ASN> [<ASN>]
 
-   Replace a specific AS number to local AS number. ``any`` replaces each
-   AS number in the AS-PATH with the local AS number.
+   Replace a specific AS number to local AS number or a configured AS number.
+   ``any`` replaces each AS number in the AS-PATH with either the local AS
+   number or the configured AS number.
 
 .. clicmd:: set as-path exclude all
 
@@ -2620,6 +2621,10 @@ BGP Extended Communities in Route Map
 
    This command sets Site of Origin value.
 
+.. clicmd:: set extcomumnity color EXTCOMMUNITY
+
+   This command sets colors values.
+   
 .. clicmd:: set extcommunity bandwidth <(1-25600) | cumulative | num-multipaths> [non-transitive]
 
    This command sets the BGP link-bandwidth extended community for the prefix

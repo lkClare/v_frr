@@ -596,7 +596,7 @@ static void sid_register(struct bgp *bgp, const struct in6_addr *sid,
 	listnode_add(bgp->srv6_functions, func);
 }
 
-static void sid_unregister(struct bgp *bgp, const struct in6_addr *sid)
+void sid_unregister(struct bgp *bgp, const struct in6_addr *sid)
 {
 	struct listnode *node, *nnode;
 	struct bgp_srv6_function *func;
@@ -4026,14 +4026,21 @@ static void bgp_mplsvpn_nh_label_bind_send_nexthop_label(
 		}
 		p = &pfx_nh;
 		if (nh->nh_label) {
-			if (nh->nh_label->num_labels >
-			    MPLS_MAX_LABELS - num_labels)
-				lsp_num_labels = MPLS_MAX_LABELS - num_labels;
-			else
-				lsp_num_labels = nh->nh_label->num_labels;
+			if (nh->nh_label->num_labels + 1 > MPLS_MAX_LABELS) {
+				/* label stack overflow. no label switching will be performed
+				 */
+				flog_err(EC_BGP_LABEL,
+					 "%s [Error] BGP label %u->%u to %pFX, forged label stack too big: %u. Abort LSP installation",
+					 bmnc->bgp_vpn->name_pretty,
+					 bmnc->new_label, bmnc->orig_label,
+					 &bmnc->nexthop,
+					 nh->nh_label->num_labels + 1);
+				return;
+			}
+			lsp_num_labels = nh->nh_label->num_labels;
 			for (i = 0; i < lsp_num_labels; i++)
 				label[num_labels + i] = nh->nh_label->label[i];
-			num_labels += lsp_num_labels;
+			num_labels = lsp_num_labels;
 		}
 		label[num_labels] = bmnc->orig_label;
 		num_labels += 1;
@@ -4066,6 +4073,10 @@ void bgp_mplsvpn_nh_label_bind_free(
 	}
 	bgp_mplsvpn_nh_label_bind_cache_del(
 		&bmnc->bgp_vpn->mplsvpn_nh_label_bind, bmnc);
+
+	if (bmnc->nh)
+		nexthop_free(bmnc->nh);
+
 	XFREE(MTYPE_MPLSVPN_NH_LABEL_BIND_CACHE, bmnc);
 }
 
@@ -4242,15 +4253,13 @@ void bgp_mplsvpn_nh_label_bind_register_local_label(struct bgp *bgp,
 		return;
 
 	bgp_mplsvpn_path_nh_label_bind_unlink(pi);
-	if (bmnc) {
-		/* updates NHT pi list reference */
-		LIST_INSERT_HEAD(&(bmnc->paths), pi,
-				 mplsvpn.bmnc.nh_label_bind_thread);
-		pi->mplsvpn.bmnc.nh_label_bind_cache = bmnc;
-		pi->mplsvpn.bmnc.nh_label_bind_cache->path_count++;
-		SET_FLAG(pi->flags, BGP_PATH_MPLSVPN_NH_LABEL_BIND);
-		bmnc->last_update = monotime(NULL);
-	}
+
+	/* updates NHT pi list reference */
+	LIST_INSERT_HEAD(&(bmnc->paths), pi, mplsvpn.bmnc.nh_label_bind_thread);
+	pi->mplsvpn.bmnc.nh_label_bind_cache = bmnc;
+	pi->mplsvpn.bmnc.nh_label_bind_cache->path_count++;
+	SET_FLAG(pi->flags, BGP_PATH_MPLSVPN_NH_LABEL_BIND);
+	bmnc->last_update = monotime(NULL);
 
 	/* Add or update the selected nexthop */
 	if (!bmnc->nh)

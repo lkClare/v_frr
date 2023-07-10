@@ -1075,11 +1075,14 @@ static void bgp_zebra_tm_connect(struct event *t)
 		ret = tm_table_manager_connect(zclient);
 	}
 	if (ret < 0) {
-		zlog_info("Error connecting to table manager!");
+		zlog_err("Error connecting to table manager!");
 		bgp_tm_status_connected = false;
 	} else {
-		if (!bgp_tm_status_connected)
-			zlog_debug("Connecting to table manager. Success");
+		if (!bgp_tm_status_connected) {
+			if (BGP_DEBUG(zebra, ZEBRA))
+				zlog_debug(
+					"Connecting to table manager. Success");
+		}
 		bgp_tm_status_connected = true;
 		if (!bgp_tm_chunk_obtained) {
 			if (bgp_zebra_get_table_range(bgp_tm_chunk_size,
@@ -1122,7 +1125,7 @@ void bgp_zebra_init_tm_connect(struct bgp *bgp)
 	bgp_tm_min = bgp_tm_max = 0;
 	bgp_tm_chunk_size = BGP_FLOWSPEC_TABLE_CHUNK;
 	bgp_tm_bgp = bgp;
-	event_add_timer(bm->master, bgp_zebra_tm_connect, zclient, delay,
+	event_add_timer(bm->master, bgp_zebra_tm_connect, zclient_sync, delay,
 			&bgp_tm_thread_connect);
 }
 
@@ -1442,7 +1445,7 @@ void bgp_zebra_announce(struct bgp_dest *dest, const struct prefix *p,
 
 		if (CHECK_FLAG(info->attr->flag,
 			       ATTR_FLAG_BIT(BGP_ATTR_SRTE_COLOR)))
-			api_nh->srte_color = info->attr->srte_color;
+			api_nh->srte_color = bgp_attr_get_color(info->attr);
 
 		if (bgp_debug_zebra(&api.prefix)) {
 			if (mpinfo->extra) {
@@ -1911,7 +1914,7 @@ int bgp_redistribute_set(struct bgp *bgp, afi_t afi, int type,
 
 		redist_add_instance(&zclient->mi_redist[afi][type], instance);
 	} else {
-		if (vrf_bitmap_check(zclient->redist[afi][type], bgp->vrf_id))
+		if (vrf_bitmap_check(&zclient->redist[afi][type], bgp->vrf_id))
 			return CMD_WARNING;
 
 #ifdef ENABLE_BGP_VNC
@@ -1921,7 +1924,7 @@ int bgp_redistribute_set(struct bgp *bgp, afi_t afi, int type,
 		}
 #endif
 
-		vrf_bitmap_set(zclient->redist[afi][type], bgp->vrf_id);
+		vrf_bitmap_set(&zclient->redist[afi][type], bgp->vrf_id);
 	}
 
 	/*
@@ -2042,9 +2045,9 @@ int bgp_redistribute_unreg(struct bgp *bgp, afi_t afi, int type,
 			return CMD_WARNING;
 		redist_del_instance(&zclient->mi_redist[afi][type], instance);
 	} else {
-		if (!vrf_bitmap_check(zclient->redist[afi][type], bgp->vrf_id))
+		if (!vrf_bitmap_check(&zclient->redist[afi][type], bgp->vrf_id))
 			return CMD_WARNING;
-		vrf_bitmap_unset(zclient->redist[afi][type], bgp->vrf_id);
+		vrf_bitmap_unset(&zclient->redist[afi][type], bgp->vrf_id);
 	}
 
 	if (bgp_install_info_to_zebra(bgp)) {

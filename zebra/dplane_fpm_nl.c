@@ -587,7 +587,8 @@ static void fpm_read(struct event *t)
 		switch (hdr->nlmsg_type) {
 		case RTM_NEWROUTE:
 			ctx = dplane_ctx_alloc();
-			dplane_ctx_set_op(ctx, DPLANE_OP_ROUTE_NOTIFY);
+			dplane_ctx_route_init(ctx, DPLANE_OP_ROUTE_NOTIFY, NULL,
+					      NULL);
 			if (netlink_route_change_read_unicast_internal(
 				    hdr, 0, false, ctx) != 1) {
 				dplane_ctx_fini(&ctx);
@@ -933,6 +934,7 @@ static int fpm_nl_enqueue(struct fpm_nl_ctx *fnc, struct zebra_dplane_ctx *ctx)
 	case DPLANE_OP_TC_FILTER_DELETE:
 	case DPLANE_OP_TC_FILTER_UPDATE:
 	case DPLANE_OP_NONE:
+	case DPLANE_OP_STARTUP_STAGE:
 		break;
 
 	}

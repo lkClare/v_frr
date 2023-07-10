@@ -3654,9 +3654,9 @@ static void bgp_zclient_set_redist(afi_t afi, int type, unsigned short instance,
 					    instance);
 	} else {
 		if (set)
-			vrf_bitmap_set(zclient->redist[afi][type], vrf_id);
+			vrf_bitmap_set(&zclient->redist[afi][type], vrf_id);
 		else
-			vrf_bitmap_unset(zclient->redist[afi][type], vrf_id);
+			vrf_bitmap_unset(&zclient->redist[afi][type], vrf_id);
 	}
 }
 
@@ -3983,7 +3983,6 @@ void bgp_free(struct bgp *bgp)
 
 	bgp_evpn_cleanup(bgp);
 	bgp_pbr_cleanup(bgp);
-	bgp_srv6_cleanup(bgp);
 
 	for (afi = AFI_IP; afi < AFI_MAX; afi++) {
 		enum vpn_policy_direction dir;
@@ -4001,8 +4000,20 @@ void bgp_free(struct bgp *bgp)
 			ecommunity_free(&bgp->vpn_policy[afi].rtlist[dir]);
 		if (bgp->vpn_policy[afi].tovpn_rd_pretty)
 			XFREE(MTYPE_BGP, bgp->vpn_policy[afi].tovpn_rd_pretty);
+		if (bgp->vpn_policy[afi].tovpn_sid_locator != NULL)
+			srv6_locator_chunk_free(
+				&bgp->vpn_policy[afi].tovpn_sid_locator);
+		if (bgp->vpn_policy[afi].tovpn_zebra_vrf_sid_last_sent != NULL)
+			XFREE(MTYPE_BGP_SRV6_SID,
+			      bgp->vpn_policy[afi]
+				      .tovpn_zebra_vrf_sid_last_sent);
+		if (bgp->vpn_policy[afi].tovpn_sid != NULL) {
+			sid_unregister(bgp, bgp->vpn_policy[afi].tovpn_sid);
+			XFREE(MTYPE_BGP_SRV6_SID,
+			      bgp->vpn_policy[afi].tovpn_sid);
+		}
 	}
-
+	bgp_srv6_cleanup(bgp);
 	bgp_confederation_id_unset(bgp);
 
 	XFREE(MTYPE_BGP, bgp->as_pretty);
@@ -4403,8 +4414,7 @@ void peer_change_action(struct peer *peer, afi_t afi, safi_t safi,
 		bgp_notify_send(peer, BGP_NOTIFY_CEASE,
 				BGP_NOTIFY_CEASE_CONFIG_CHANGE);
 	} else if (type == peer_change_reset_in) {
-		if (CHECK_FLAG(peer->cap, PEER_CAP_REFRESH_OLD_RCV)
-		    || CHECK_FLAG(peer->cap, PEER_CAP_REFRESH_NEW_RCV))
+		if (CHECK_FLAG(peer->cap, PEER_CAP_REFRESH_RCV))
 			bgp_route_refresh_send(peer, afi, safi, 0, 0, 0,
 					       BGP_ROUTE_REFRESH_NORMAL);
 		else {
@@ -5707,8 +5717,7 @@ void peer_on_policy_change(struct peer *peer, afi_t afi, safi_t safi,
 		if (bgp_soft_reconfig_in(peer, afi, safi))
 			return;
 
-		if (CHECK_FLAG(peer->cap, PEER_CAP_REFRESH_OLD_RCV) ||
-		    CHECK_FLAG(peer->cap, PEER_CAP_REFRESH_NEW_RCV))
+		if (CHECK_FLAG(peer->cap, PEER_CAP_REFRESH_RCV))
 			bgp_route_refresh_send(peer, afi, safi, 0, 0, 0,
 					       BGP_ROUTE_REFRESH_NORMAL);
 	}
@@ -7975,8 +7984,7 @@ int peer_clear_soft(struct peer *peer, afi_t afi, safi_t safi,
 			/* If neighbor has route refresh capability, send route
 			   refresh
 			   message to the peer. */
-			if (CHECK_FLAG(peer->cap, PEER_CAP_REFRESH_OLD_RCV)
-			    || CHECK_FLAG(peer->cap, PEER_CAP_REFRESH_NEW_RCV))
+			if (CHECK_FLAG(peer->cap, PEER_CAP_REFRESH_RCV))
 				bgp_route_refresh_send(
 					peer, afi, safi, 0, 0, 0,
 					BGP_ROUTE_REFRESH_NORMAL);
@@ -8333,7 +8341,8 @@ struct peer *peer_lookup_in_view(struct vty *vty, struct bgp *bgp,
 
 			if (!peer) {
 				group = peer_group_lookup(bgp, ip_str);
-				peer = listnode_head(group->peer);
+				if (group)
+					peer = listnode_head(group->peer);
 			}
 
 			if (!peer) {

@@ -180,14 +180,14 @@ void zclient_stop(struct zclient *zclient)
 
 	for (afi = AFI_IP; afi < AFI_MAX; afi++) {
 		for (i = 0; i < ZEBRA_ROUTE_MAX; i++) {
-			vrf_bitmap_free(zclient->redist[afi][i]);
+			vrf_bitmap_free(&zclient->redist[afi][i]);
 			zclient->redist[afi][i] = VRF_BITMAP_NULL;
 		}
 		redist_del_instance(
 			&zclient->mi_redist[afi][zclient->redist_default],
 			zclient->instance);
 
-		vrf_bitmap_free(zclient->default_information[afi]);
+		vrf_bitmap_free(&zclient->default_information[afi]);
 		zclient->default_information[afi] = VRF_BITMAP_NULL;
 	}
 }
@@ -494,7 +494,7 @@ void zclient_send_reg_requests(struct zclient *zclient, vrf_id_t vrf_id)
 
 	/* Set unwanted redistribute route. */
 	for (afi = AFI_IP; afi < AFI_MAX; afi++)
-		vrf_bitmap_set(zclient->redist[afi][zclient->redist_default],
+		vrf_bitmap_set(&zclient->redist[afi][zclient->redist_default],
 			       vrf_id);
 
 	/* Flush all redistribute request. */
@@ -524,15 +524,15 @@ void zclient_send_reg_requests(struct zclient *zclient, vrf_id_t vrf_id)
 	/* Resend all redistribute request. */
 	for (afi = AFI_IP; afi < AFI_MAX; afi++) {
 		for (i = 0; i < ZEBRA_ROUTE_MAX; i++)
-			if (i != zclient->redist_default
-			    && vrf_bitmap_check(zclient->redist[afi][i],
-						vrf_id))
+			if (i != zclient->redist_default &&
+			    vrf_bitmap_check(&zclient->redist[afi][i], vrf_id))
 				zebra_redistribute_send(ZEBRA_REDISTRIBUTE_ADD,
 							zclient, afi, i, 0,
 							vrf_id);
 
 		/* If default information is needed. */
-		if (vrf_bitmap_check(zclient->default_information[afi], vrf_id))
+		if (vrf_bitmap_check(&zclient->default_information[afi],
+				     vrf_id))
 			zebra_redistribute_default_send(
 				ZEBRA_REDISTRIBUTE_DEFAULT_ADD, zclient, afi,
 				vrf_id);
@@ -561,7 +561,7 @@ void zclient_send_dereg_requests(struct zclient *zclient, vrf_id_t vrf_id)
 
 	/* Set unwanted redistribute route. */
 	for (afi = AFI_IP; afi < AFI_MAX; afi++)
-		vrf_bitmap_unset(zclient->redist[afi][zclient->redist_default],
+		vrf_bitmap_unset(&zclient->redist[afi][zclient->redist_default],
 				 vrf_id);
 
 	/* Flush all redistribute request. */
@@ -591,15 +591,15 @@ void zclient_send_dereg_requests(struct zclient *zclient, vrf_id_t vrf_id)
 	/* Flush all redistribute request. */
 	for (afi = AFI_IP; afi < AFI_MAX; afi++) {
 		for (i = 0; i < ZEBRA_ROUTE_MAX; i++)
-			if (i != zclient->redist_default
-			    && vrf_bitmap_check(zclient->redist[afi][i],
-						vrf_id))
+			if (i != zclient->redist_default &&
+			    vrf_bitmap_check(&zclient->redist[afi][i], vrf_id))
 				zebra_redistribute_send(
 					ZEBRA_REDISTRIBUTE_DELETE, zclient, afi,
 					i, 0, vrf_id);
 
 		/* If default information is needed. */
-		if (vrf_bitmap_check(zclient->default_information[afi], vrf_id))
+		if (vrf_bitmap_check(&zclient->default_information[afi],
+				     vrf_id))
 			zebra_redistribute_default_send(
 				ZEBRA_REDISTRIBUTE_DEFAULT_DELETE, zclient, afi,
 				vrf_id);
@@ -726,7 +726,7 @@ void zclient_init(struct zclient *zclient, int redist_default,
 	/* Clear redistribution flags. */
 	for (afi = AFI_IP; afi < AFI_MAX; afi++)
 		for (i = 0; i < ZEBRA_ROUTE_MAX; i++)
-			zclient->redist[afi][i] = vrf_bitmap_init();
+			vrf_bitmap_init(&zclient->redist[afi][i]);
 
 	/* Set unwanted redistribute route.  bgpd does not need BGP route
 	   redistribution. */
@@ -738,7 +738,7 @@ void zclient_init(struct zclient *zclient, int redist_default,
 				    instance);
 
 		/* Set default-information redistribute to zero. */
-		zclient->default_information[afi] = vrf_bitmap_init();
+		vrf_bitmap_init(&zclient->default_information[afi]);
 	}
 
 	if (zclient_debug)
@@ -3824,6 +3824,53 @@ enum zclient_send_status zclient_send_mlag_data(struct zclient *client,
 }
 
 /*
+ * Init/header setup for opaque zapi messages
+ */
+enum zclient_send_status zapi_opaque_init(struct zclient *zclient,
+					  uint32_t type, uint16_t flags)
+{
+	struct stream *s;
+
+	s = zclient->obuf;
+	stream_reset(s);
+
+	zclient_create_header(s, ZEBRA_OPAQUE_MESSAGE, VRF_DEFAULT);
+
+	/* Send sub-type and flags */
+	stream_putl(s, type);
+	stream_putw(s, flags);
+
+	/* Source daemon identifiers */
+	stream_putc(s, zclient->redist_default);
+	stream_putw(s, zclient->instance);
+	stream_putl(s, zclient->session_id);
+
+	return ZCLIENT_SEND_SUCCESS;
+}
+
+/*
+ * Init, header setup for opaque unicast messages.
+ */
+enum zclient_send_status
+zapi_opaque_unicast_init(struct zclient *zclient, uint32_t type, uint16_t flags,
+			 uint8_t proto, uint16_t instance, uint32_t session_id)
+{
+	struct stream *s;
+
+	s = zclient->obuf;
+
+	/* Common init */
+	zapi_opaque_init(zclient, type, flags | ZAPI_OPAQUE_FLAG_UNICAST);
+
+	/* Send destination client info */
+	stream_putc(s, proto);
+	stream_putw(s, instance);
+	stream_putl(s, session_id);
+
+	return ZCLIENT_SEND_SUCCESS;
+}
+
+/*
  * Send an OPAQUE message, contents opaque to zebra. The message header
  * is a message subtype.
  */
@@ -3840,16 +3887,12 @@ enum zclient_send_status zclient_send_opaque(struct zclient *zclient,
 		return ZCLIENT_SEND_FAILURE;
 
 	s = zclient->obuf;
-	stream_reset(s);
 
-	zclient_create_header(s, ZEBRA_OPAQUE_MESSAGE, VRF_DEFAULT);
-
-	/* Send sub-type and flags */
-	stream_putl(s, type);
-	stream_putw(s, flags);
+	zapi_opaque_init(zclient, type, flags);
 
 	/* Send opaque data */
-	stream_write(s, data, datasize);
+	if (datasize > 0)
+		stream_write(s, data, datasize);
 
 	/* Put length into the header at the start of the stream. */
 	stream_putw_at(s, 0, stream_get_endp(s));
@@ -3876,22 +3919,14 @@ zclient_send_opaque_unicast(struct zclient *zclient, uint32_t type,
 		return ZCLIENT_SEND_FAILURE;
 
 	s = zclient->obuf;
-	stream_reset(s);
 
-	zclient_create_header(s, ZEBRA_OPAQUE_MESSAGE, VRF_DEFAULT);
-
-	/* Send sub-type and flags */
-	SET_FLAG(flags, ZAPI_OPAQUE_FLAG_UNICAST);
-	stream_putl(s, type);
-	stream_putw(s, flags);
-
-	/* Send destination client info */
-	stream_putc(s, proto);
-	stream_putw(s, instance);
-	stream_putl(s, session_id);
+	/* Common init */
+	zapi_opaque_unicast_init(zclient, type, flags, proto, instance,
+				 session_id);
 
 	/* Send opaque data */
-	stream_write(s, data, datasize);
+	if (datasize > 0)
+		stream_write(s, data, datasize);
 
 	/* Put length into the header at the start of the stream. */
 	stream_putw_at(s, 0, stream_get_endp(s));
@@ -3910,11 +3945,16 @@ int zclient_opaque_decode(struct stream *s, struct zapi_opaque_msg *info)
 	STREAM_GETL(s, info->type);
 	STREAM_GETW(s, info->flags);
 
-	/* Decode unicast client info if present */
+	/* Decode sending daemon info */
+	STREAM_GETC(s, info->src_proto);
+	STREAM_GETW(s, info->src_instance);
+	STREAM_GETL(s, info->src_session_id);
+
+	/* Decode unicast destination info, if present */
 	if (CHECK_FLAG(info->flags, ZAPI_OPAQUE_FLAG_UNICAST)) {
-		STREAM_GETC(s, info->proto);
-		STREAM_GETW(s, info->instance);
-		STREAM_GETL(s, info->session_id);
+		STREAM_GETC(s, info->dest_proto);
+		STREAM_GETW(s, info->dest_instance);
+		STREAM_GETL(s, info->dest_session_id);
 	}
 
 	info->len = STREAM_READABLE(s);
@@ -4168,15 +4208,15 @@ void zclient_redistribute(int command, struct zclient *zclient, afi_t afi,
 
 	} else {
 		if (command == ZEBRA_REDISTRIBUTE_ADD) {
-			if (vrf_bitmap_check(zclient->redist[afi][type],
+			if (vrf_bitmap_check(&zclient->redist[afi][type],
 					     vrf_id))
 				return;
-			vrf_bitmap_set(zclient->redist[afi][type], vrf_id);
+			vrf_bitmap_set(&zclient->redist[afi][type], vrf_id);
 		} else {
-			if (!vrf_bitmap_check(zclient->redist[afi][type],
+			if (!vrf_bitmap_check(&zclient->redist[afi][type],
 					      vrf_id))
 				return;
-			vrf_bitmap_unset(zclient->redist[afi][type], vrf_id);
+			vrf_bitmap_unset(&zclient->redist[afi][type], vrf_id);
 		}
 	}
 
@@ -4191,14 +4231,15 @@ void zclient_redistribute_default(int command, struct zclient *zclient,
 {
 
 	if (command == ZEBRA_REDISTRIBUTE_DEFAULT_ADD) {
-		if (vrf_bitmap_check(zclient->default_information[afi], vrf_id))
+		if (vrf_bitmap_check(&zclient->default_information[afi],
+				     vrf_id))
 			return;
-		vrf_bitmap_set(zclient->default_information[afi], vrf_id);
+		vrf_bitmap_set(&zclient->default_information[afi], vrf_id);
 	} else {
-		if (!vrf_bitmap_check(zclient->default_information[afi],
+		if (!vrf_bitmap_check(&zclient->default_information[afi],
 				      vrf_id))
 			return;
-		vrf_bitmap_unset(zclient->default_information[afi], vrf_id);
+		vrf_bitmap_unset(&zclient->default_information[afi], vrf_id);
 	}
 
 	if (zclient->sock > 0)
@@ -4471,4 +4512,126 @@ int zclient_send_zebra_gre_request(struct zclient *client,
 	stream_putw_at(s, 0, stream_get_endp(s));
 	zclient_send_message(client);
 	return 0;
+}
+
+
+/*
+ * Opaque notification features
+ */
+
+/*
+ * Common encode helper for opaque notifications, both registration
+ * and async notification messages.
+ */
+static int opaque_notif_encode_common(struct stream *s, uint32_t msg_type,
+				      bool request, bool reg, uint8_t proto,
+				      uint16_t instance, uint32_t session_id)
+{
+	int ret = 0;
+	uint8_t val = 0;
+
+	stream_reset(s);
+
+	zclient_create_header(s, ZEBRA_OPAQUE_NOTIFY, VRF_DEFAULT);
+
+	/* Notification or request */
+	if (request)
+		val = 1;
+	stream_putc(s, val);
+
+	if (reg)
+		val = 1;
+	else
+		val = 0;
+	stream_putc(s, val);
+
+	stream_putl(s, msg_type);
+
+	stream_putc(s, proto);
+	stream_putw(s, instance);
+	stream_putl(s, session_id);
+
+	/* And capture message length */
+	stream_putw_at(s, 0, stream_get_endp(s));
+
+	return ret;
+}
+
+/*
+ * Encode a zapi opaque message type notification into buffer 's'
+ */
+int zclient_opaque_notif_encode(struct stream *s, uint32_t msg_type, bool reg,
+				uint8_t proto, uint16_t instance,
+				uint32_t session_id)
+{
+	return opaque_notif_encode_common(s, msg_type, false /* !request */,
+					  reg, proto, instance, session_id);
+}
+
+/*
+ * Decode an incoming zapi opaque message type notification
+ */
+int zclient_opaque_notif_decode(struct stream *s,
+				struct zapi_opaque_notif_info *info)
+{
+	uint8_t val;
+
+	memset(info, 0, sizeof(*info));
+
+	STREAM_GETC(s, val); /* Registration or notification */
+	info->request = (val != 0);
+
+	STREAM_GETC(s, val);
+	info->reg = (val != 0);
+
+	STREAM_GETL(s, info->msg_type);
+
+	STREAM_GETC(s, info->proto);
+	STREAM_GETW(s, info->instance);
+	STREAM_GETL(s, info->session_id);
+
+	return 0;
+
+stream_failure:
+	return -1;
+}
+
+/*
+ * Encode and send a zapi opaque message type notification request to zebra
+ */
+enum zclient_send_status zclient_opaque_request_notify(struct zclient *zclient,
+						       uint32_t msgtype)
+{
+	struct stream *s;
+
+	if (!zclient || zclient->sock < 0)
+		return ZCLIENT_SEND_FAILURE;
+
+	s = zclient->obuf;
+
+	opaque_notif_encode_common(s, msgtype, true /* request */,
+				   true /* register */, zclient->redist_default,
+				   zclient->instance, zclient->session_id);
+
+	return zclient_send_message(zclient);
+}
+
+/*
+ * Encode and send a request to drop notifications for an opaque message type.
+ */
+enum zclient_send_status zclient_opaque_drop_notify(struct zclient *zclient,
+						    uint32_t msgtype)
+{
+	struct stream *s;
+
+	if (!zclient || zclient->sock < 0)
+		return ZCLIENT_SEND_FAILURE;
+
+	s = zclient->obuf;
+
+	opaque_notif_encode_common(s, msgtype, true /* req */,
+				   false /* unreg */, zclient->redist_default,
+				   zclient->instance, zclient->session_id);
+
+	return zclient_send_message(zclient);
 }

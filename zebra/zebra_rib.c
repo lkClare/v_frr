@@ -1438,7 +1438,7 @@ static void zebra_rib_evaluate_mpls(struct route_node *rn)
  */
 static bool rib_route_match_ctx(const struct route_entry *re,
 				const struct zebra_dplane_ctx *ctx,
-				bool is_update)
+				bool is_update, bool async)
 {
 	bool result = false;
 
@@ -1454,13 +1454,12 @@ static bool rib_route_match_ctx(const struct route_entry *re,
 			/* We use an extra test for statics, and another for
 			 * kernel routes.
 			 */
-			if (re->type == ZEBRA_ROUTE_STATIC &&
+			if (re->type == ZEBRA_ROUTE_STATIC && !async &&
 			    (re->distance != dplane_ctx_get_old_distance(ctx) ||
 			     re->tag != dplane_ctx_get_old_tag(ctx))) {
 				result = false;
 			} else if (re->type == ZEBRA_ROUTE_KERNEL &&
-				   re->metric !=
-				   dplane_ctx_get_old_metric(ctx)) {
+				   re->metric != dplane_ctx_get_old_metric(ctx)) {
 				result = false;
 			}
 		}
@@ -1482,7 +1481,7 @@ static bool rib_route_match_ctx(const struct route_entry *re,
 			/* We use an extra test for statics, and another for
 			 * kernel routes.
 			 */
-			if (re->type == ZEBRA_ROUTE_STATIC &&
+			if (re->type == ZEBRA_ROUTE_STATIC && !async &&
 			    (re->distance != dplane_ctx_get_distance(ctx) ||
 			     re->tag != dplane_ctx_get_tag(ctx))) {
 				result = false;
@@ -1946,13 +1945,13 @@ static void rib_process_result(struct zebra_dplane_ctx *ctx)
 	RNODE_FOREACH_RE(rn, rib) {
 
 		if (re == NULL) {
-			if (rib_route_match_ctx(rib, ctx, false))
+			if (rib_route_match_ctx(rib, ctx, false, false))
 				re = rib;
 		}
 
 		/* Check for old route match */
 		if (is_update && (old_re == NULL)) {
-			if (rib_route_match_ctx(rib, ctx, true /*is_update*/))
+			if (rib_route_match_ctx(rib, ctx, true, false))
 				old_re = rib;
 		}
 
@@ -2183,6 +2182,7 @@ static void rib_process_result(struct zebra_dplane_ctx *ctx)
 	case DPLANE_OP_TC_FILTER_ADD:
 	case DPLANE_OP_TC_FILTER_DELETE:
 	case DPLANE_OP_TC_FILTER_UPDATE:
+	case DPLANE_OP_STARTUP_STAGE:
 		break;
 	}
 
@@ -2271,7 +2271,7 @@ static void rib_process_dplane_notify(struct zebra_dplane_ctx *ctx)
 	 * info.
 	 */
 	RNODE_FOREACH_RE(rn, re) {
-		if (rib_route_match_ctx(re, ctx, false /*!update*/))
+		if (rib_route_match_ctx(re, ctx, false, true))
 			break;
 	}
 
@@ -3978,6 +3978,10 @@ void rib_delnode(struct route_node *rn, struct route_entry *re)
 	if (IS_ZEBRA_DEBUG_RIB)
 		rnode_debug(rn, re->vrf_id, "rn %p, re %p, removing",
 			    (void *)rn, (void *)re);
+
+	if (IS_ZEBRA_DEBUG_RIB_DETAILED)
+		route_entry_dump(&rn->p, NULL, re);
+
 	SET_FLAG(re->status, ROUTE_ENTRY_REMOVED);
 
 	afi = (rn->p.family == AF_INET)
@@ -4123,8 +4127,8 @@ void _route_entry_dump(const char *func, union prefixconstptr pp,
 		zclient_dump_route_flags(re->flags, flags_buf,
 					 sizeof(flags_buf)),
 		_dump_re_status(re, status_buf, sizeof(status_buf)));
-	zlog_debug("%s: nexthop_num == %u, nexthop_active_num == %u", straddr,
-		   nexthop_group_nexthop_num(&(re->nhe->nhg)),
+	zlog_debug("%s: tag == %u, nexthop_num == %u, nexthop_active_num == %u",
+		   straddr, re->tag, nexthop_group_nexthop_num(&(re->nhe->nhg)),
 		   nexthop_group_active_nexthop_num(&(re->nhe->nhg)));
 
 	/* Dump nexthops */
@@ -4858,6 +4862,9 @@ static void rib_process_dplane_results(struct event *thread)
 			case DPLANE_OP_NEIGH_TABLE_UPDATE:
 			case DPLANE_OP_GRE_SET:
 			case DPLANE_OP_NONE:
+				break;
+			case DPLANE_OP_STARTUP_STAGE:
+				zebra_ns_startup_continue(ctx);
 				break;
 
 			} /* Dispatch by op code */

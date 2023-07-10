@@ -424,7 +424,7 @@ static void display_l3vni(struct vty *vty, struct bgp *bgp_vrf,
 		}
 		vty_out(vty, "  Advertise-gw-macip : %s\n", "n/a");
 		vty_out(vty, "  Advertise-svi-macip : %s\n", "n/a");
-		if (bgp_vrf && bgp_vrf->evpn_info) {
+		if (bgp_vrf->evpn_info) {
 			vty_out(vty, "  Advertise-pip: %s\n",
 				bgp_vrf->evpn_info->advertise_pip ? "Yes"
 								  : "No");
@@ -2291,6 +2291,9 @@ static void evpn_configure_vrf_rd(struct bgp *bgp_vrf, struct prefix_rd *rd,
 	 * have to delete and withdraw them firs
 	 */
 	bgp_evpn_handle_vrf_rd_change(bgp_vrf, 1);
+
+	if (bgp_vrf->vrf_prd_pretty)
+		XFREE(MTYPE_BGP, bgp_vrf->vrf_prd_pretty);
 
 	/* update RD */
 	memcpy(&bgp_vrf->vrf_prd, rd, sizeof(struct prefix_rd));

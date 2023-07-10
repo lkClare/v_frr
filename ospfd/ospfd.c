@@ -60,7 +60,10 @@ struct ospf_master *om;
 unsigned short ospf_instance;
 
 extern struct zclient *zclient;
+extern struct zclient *zclient_sync;
 
+/* OSPF config processing timer thread */
+struct event *t_ospf_cfg;
 
 static void ospf_remove_vls_through_area(struct ospf *, struct ospf_area *);
 static void ospf_network_free(struct ospf *, struct ospf_network *);
@@ -681,6 +684,8 @@ void ospf_terminate(void)
 	 */
 	zclient_stop(zclient);
 	zclient_free(zclient);
+	zclient_stop(zclient_sync);
+	zclient_free(zclient_sync);
 
 done:
 	frr_fini();
@@ -2282,20 +2287,20 @@ static void ospf_set_redist_vrf_bitmaps(struct ospf *ospf, bool set)
 				"%s: setting redist vrf %d bitmap for type %d",
 				__func__, ospf->vrf_id, type);
 		if (set)
-			vrf_bitmap_set(zclient->redist[AFI_IP][type],
+			vrf_bitmap_set(&zclient->redist[AFI_IP][type],
 				       ospf->vrf_id);
 		else
-			vrf_bitmap_unset(zclient->redist[AFI_IP][type],
+			vrf_bitmap_unset(&zclient->redist[AFI_IP][type],
 					 ospf->vrf_id);
 	}
 
 	red_list = ospf->redist[DEFAULT_ROUTE];
 	if (red_list) {
 		if (set)
-			vrf_bitmap_set(zclient->default_information[AFI_IP],
+			vrf_bitmap_set(&zclient->default_information[AFI_IP],
 				       ospf->vrf_id);
 		else
-			vrf_bitmap_unset(zclient->default_information[AFI_IP],
+			vrf_bitmap_unset(&zclient->default_information[AFI_IP],
 					 ospf->vrf_id);
 	}
 }
