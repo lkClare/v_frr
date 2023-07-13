@@ -215,10 +215,6 @@ struct bgp_path_info_extra {
 
 #define BGP_EVPN_MACIP_TYPE_SVI_IP (1 << 0)
 
-	/* SRv6 SID(s) for SRv6-VPN */
-	struct bgp_sid_info sid[BGP_MAX_SIDS];
-	uint32_t num_sids;
-
 #ifdef ENABLE_BGP_VNC
 	union {
 

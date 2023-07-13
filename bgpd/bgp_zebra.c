@@ -1307,7 +1307,6 @@ void bgp_zebra_announce(struct bgp_dest *dest, const struct prefix *p,
 	struct bgp_path_info local_info;
 	struct bgp_path_info *mpinfo_cp = &local_info;
 	route_tag_t tag;
-	struct bgp_sid_info *sid_info;
 	mpls_label_t *labels;
 	uint32_t num_labels = 0;
 	mpls_label_t nh_label;
@@ -1552,15 +1551,17 @@ void bgp_zebra_announce(struct bgp_dest *dest, const struct prefix *p,
 
 		api_nh->weight = nh_weight;
 
-		if (mpinfo->extra && !is_evpn &&
-		    bgp_is_valid_label(&labels[0]) &&
-		    !sid_zero(&mpinfo->extra->sid[0].sid)) {
-			sid_info = &mpinfo->extra->sid[0];
+		if (((mpinfo->attr->srv6_l3vpn && !sid_zero(&mpinfo->attr->srv6_l3vpn->sid)) ||
+			(mpinfo->attr->srv6_vpn && !sid_zero(&mpinfo->attr->srv6_vpn->sid))) 
+			&& !is_evpn &&
+		    bgp_is_valid_label(&labels[0])) {
 
-			memcpy(&api_nh->seg6_segs, &sid_info->sid,
+			struct in6_addr *sid_tmp = mpinfo->attr->srv6_l3vpn ? (&mpinfo->attr->srv6_l3vpn->sid) : (&mpinfo->attr->srv6_vpn->sid);
+
+			memcpy(&api_nh->seg6_segs, sid_tmp,
 			       sizeof(api_nh->seg6_segs));
 
-			if (sid_info->transposition_len != 0) {
+			if (mpinfo->attr->srv6_l3vpn && mpinfo->attr->srv6_l3vpn->transposition_len != 0) {
 				mpls_lse_decode(labels[0], &nh_label, &ttl,
 						&exp, &bos);
 
@@ -1572,8 +1573,8 @@ void bgp_zebra_announce(struct bgp_dest *dest, const struct prefix *p,
 				}
 
 				transpose_sid(&api_nh->seg6_segs, nh_label,
-					      sid_info->transposition_offset,
-					      sid_info->transposition_len);
+					      mpinfo->attr->srv6_l3vpn->transposition_offset,
+					      mpinfo->attr->srv6_l3vpn->transposition_len);
 			}
 
 			SET_FLAG(api_nh->flags, ZAPI_NEXTHOP_FLAG_SEG6);

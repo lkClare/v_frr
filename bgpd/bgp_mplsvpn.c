@@ -996,41 +996,6 @@ static void setlabels(struct bgp_path_info *bpi,
 	extra->num_labels = num_labels;
 }
 
-/*
- * make encoded route SIDs match specified encoded sid set
- */
-static void setsids(struct bgp_path_info *bpi,
-		      struct in6_addr *sid,
-		      uint32_t num_sids)
-{
-	uint32_t i;
-	struct bgp_path_info_extra *extra;
-
-	if (num_sids)
-		assert(sid);
-	assert(num_sids <= BGP_MAX_SIDS);
-
-	if (!num_sids) {
-		if (bpi->extra)
-			bpi->extra->num_sids = 0;
-		return;
-	}
-
-	extra = bgp_path_info_extra_get(bpi);
-	for (i = 0; i < num_sids; i++)
-		memcpy(&extra->sid[i].sid, &sid[i], sizeof(struct in6_addr));
-	extra->num_sids = num_sids;
-}
-
-static void unsetsids(struct bgp_path_info *bpi)
-{
-	struct bgp_path_info_extra *extra;
-
-	extra = bgp_path_info_extra_get(bpi);
-	extra->num_sids = 0;
-	memset(extra->sid, 0, sizeof(extra->sid));
-}
-
 static bool leak_update_nexthop_valid(struct bgp *to_bgp, struct bgp_dest *bn,
 				      struct attr *new_attr, afi_t afi,
 				      safi_t safi,
@@ -1098,11 +1063,7 @@ leak_update(struct bgp *to_bgp, struct bgp_dest *bn,
 	struct bgp_path_info *bpi;
 	struct bgp_path_info *new;
 	struct bgp_path_info_extra *extra;
-	uint32_t num_sids = 0;
 	struct bgp_path_info *parent = source_bpi;
-
-	if (new_attr->srv6_l3vpn || new_attr->srv6_vpn)
-		num_sids = 1;
 
 	if (debug)
 		zlog_debug(
@@ -1200,34 +1161,6 @@ leak_update(struct bgp *to_bgp, struct bgp_dest *bn,
 		if (!labelssame)
 			setlabels(bpi, label, num_labels);
 
-		/*
-		 * rewrite sid
-		 */
-		if (num_sids) {
-			if (new_attr->srv6_l3vpn) {
-				setsids(bpi, &new_attr->srv6_l3vpn->sid,
-					num_sids);
-
-				extra = bgp_path_info_extra_get(bpi);
-
-				extra->sid[0].loc_block_len =
-					new_attr->srv6_l3vpn->loc_block_len;
-				extra->sid[0].loc_node_len =
-					new_attr->srv6_l3vpn->loc_node_len;
-				extra->sid[0].func_len =
-					new_attr->srv6_l3vpn->func_len;
-				extra->sid[0].arg_len =
-					new_attr->srv6_l3vpn->arg_len;
-				extra->sid[0].transposition_len =
-					new_attr->srv6_l3vpn->transposition_len;
-				extra->sid[0].transposition_offset =
-					new_attr->srv6_l3vpn
-						->transposition_offset;
-			} else if (new_attr->srv6_vpn)
-				setsids(bpi, &new_attr->srv6_vpn->sid,
-					num_sids);
-		} else
-			unsetsids(bpi);
 
 		if (nexthop_self_flag)
 			bgp_path_info_set_flag(bn, bpi, BGP_PATH_ANNC_NH_SELF);
@@ -1282,30 +1215,6 @@ leak_update(struct bgp *to_bgp, struct bgp_dest *bn,
 
 	if (CHECK_FLAG(source_bpi->flags, BGP_PATH_ACCEPT_OWN))
 		bgp_path_info_set_flag(bn, new, BGP_PATH_ACCEPT_OWN);
-	
-	/*
-	 * rewrite sid
-	 */
-	if (num_sids) {
-		if (new_attr->srv6_l3vpn) {
-			setsids(new, &new_attr->srv6_l3vpn->sid, num_sids);
-
-			extra = bgp_path_info_extra_get(new);
-
-			extra->sid[0].loc_block_len =
-				new_attr->srv6_l3vpn->loc_block_len;
-			extra->sid[0].loc_node_len =
-				new_attr->srv6_l3vpn->loc_node_len;
-			extra->sid[0].func_len = new_attr->srv6_l3vpn->func_len;
-			extra->sid[0].arg_len = new_attr->srv6_l3vpn->arg_len;
-			extra->sid[0].transposition_len =
-				new_attr->srv6_l3vpn->transposition_len;
-			extra->sid[0].transposition_offset =
-				new_attr->srv6_l3vpn->transposition_offset;
-		} else if (new_attr->srv6_vpn)
-			setsids(new, &new_attr->srv6_vpn->sid, num_sids);
-	} else
-		unsetsids(new);
 
 	if (num_labels)
 		setlabels(new, label, num_labels);

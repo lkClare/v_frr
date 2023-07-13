@@ -4687,49 +4687,6 @@ void bgp_update(struct peer *peer, const struct prefix *p, uint32_t addpath_id,
 				bgp_set_valid_label(&extra->label[0]);
 		}
 
-		/* Update SRv6 SID */
-		if (attr->srv6_l3vpn) {
-			extra = bgp_path_info_extra_get(pi);
-			if (sid_diff(&extra->sid[0].sid,
-				     &attr->srv6_l3vpn->sid)) {
-				sid_copy(&extra->sid[0].sid,
-					 &attr->srv6_l3vpn->sid);
-				extra->num_sids = 1;
-
-				extra->sid[0].loc_block_len = 0;
-				extra->sid[0].loc_node_len = 0;
-				extra->sid[0].func_len = 0;
-				extra->sid[0].arg_len = 0;
-				extra->sid[0].transposition_len = 0;
-				extra->sid[0].transposition_offset = 0;
-
-				if (attr->srv6_l3vpn->loc_block_len != 0) {
-					extra->sid[0].loc_block_len =
-						attr->srv6_l3vpn->loc_block_len;
-					extra->sid[0].loc_node_len =
-						attr->srv6_l3vpn->loc_node_len;
-					extra->sid[0].func_len =
-						attr->srv6_l3vpn->func_len;
-					extra->sid[0].arg_len =
-						attr->srv6_l3vpn->arg_len;
-					extra->sid[0].transposition_len =
-						attr->srv6_l3vpn
-							->transposition_len;
-					extra->sid[0].transposition_offset =
-						attr->srv6_l3vpn
-							->transposition_offset;
-				}
-			}
-		} else if (attr->srv6_vpn) {
-			extra = bgp_path_info_extra_get(pi);
-			if (sid_diff(&extra->sid[0].sid,
-				     &attr->srv6_vpn->sid)) {
-				sid_copy(&extra->sid[0].sid,
-					 &attr->srv6_vpn->sid);
-				extra->num_sids = 1;
-			}
-		}
-
 #ifdef ENABLE_BGP_VNC
 		if ((afi == AFI_IP || afi == AFI_IP6)
 		    && (safi == SAFI_UNICAST)) {
@@ -4912,29 +4869,6 @@ void bgp_update(struct peer *peer, const struct prefix *p, uint32_t addpath_id,
 		}
 		if (!(afi == AFI_L2VPN && safi == SAFI_EVPN))
 			bgp_set_valid_label(&extra->label[0]);
-	}
-
-	/* Update SRv6 SID */
-	if (safi == SAFI_MPLS_VPN) {
-		extra = bgp_path_info_extra_get(new);
-		if (attr->srv6_l3vpn) {
-			sid_copy(&extra->sid[0].sid, &attr->srv6_l3vpn->sid);
-			extra->num_sids = 1;
-
-			extra->sid[0].loc_block_len =
-				attr->srv6_l3vpn->loc_block_len;
-			extra->sid[0].loc_node_len =
-				attr->srv6_l3vpn->loc_node_len;
-			extra->sid[0].func_len = attr->srv6_l3vpn->func_len;
-			extra->sid[0].arg_len = attr->srv6_l3vpn->arg_len;
-			extra->sid[0].transposition_len =
-				attr->srv6_l3vpn->transposition_len;
-			extra->sid[0].transposition_offset =
-				attr->srv6_l3vpn->transposition_offset;
-		} else if (attr->srv6_vpn) {
-			sid_copy(&extra->sid[0].sid, &attr->srv6_vpn->sid);
-			extra->num_sids = 1;
-		}
 	}
 
 	/* Nexthop reachability check. */
@@ -11172,13 +11106,13 @@ void route_vty_out_detail(struct vty *vty, struct bgp *bgp, struct bgp_dest *bn,
 
 	/* Remote SID */
 	if ((path->attr->srv6_l3vpn || path->attr->srv6_vpn) && safi != SAFI_EVPN) {
-		struct in6_addr sid_tmp = path->attr->srv6_l3vpn ? path->attr->srv6_l3vpn->sid : path->attr->srv6_vpn->sid;
+		struct in6_addr *sid_tmp = path->attr->srv6_l3vpn ? (&path->attr->srv6_l3vpn->sid) : (&path->attr->srv6_vpn->sid);
 		if (json_paths)
 			json_object_string_addf(json_path, "remoteSid", "%pI6",
-						&sid_tmp);
+						sid_tmp);
 		else
 			vty_out(vty, "      Remote SID: %pI6\n",
-				&sid_tmp);
+				sid_tmp);
 	}
 
 	/* Label Index */
