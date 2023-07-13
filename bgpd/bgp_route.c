@@ -11171,13 +11171,14 @@ void route_vty_out_detail(struct vty *vty, struct bgp *bgp, struct bgp_dest *bn,
 	}
 
 	/* Remote SID */
-	if (path->extra && path->extra->num_sids > 0 && safi != SAFI_EVPN) {
+	if ((path->attr->srv6_l3vpn || path->attr->srv6_vpn) && safi != SAFI_EVPN) {
+		struct in6_addr sid_tmp = path->attr->srv6_l3vpn ? path->attr->srv6_l3vpn->sid : path->attr->srv6_vpn->sid;
 		if (json_paths)
 			json_object_string_addf(json_path, "remoteSid", "%pI6",
-						&path->extra->sid[0].sid);
+						&sid_tmp);
 		else
 			vty_out(vty, "      Remote SID: %pI6\n",
-				&path->extra->sid[0].sid);
+				&sid_tmp);
 	}
 
 	/* Label Index */
