@@ -1313,10 +1313,10 @@ route_match_vrl_source_vrf(void *rule, const struct prefix *prefix,
 	if (strncmp(vrf_name, "n/a", VRF_NAMSIZ) == 0)
 		return RMAP_NOMATCH;
 
-	if (path->extra == NULL || path->extra->bgp_orig == NULL)
+	if (path->extra == NULL || path->extra->pvrfleak == NULL || path->extra->pvrfleak->bgp_orig == NULL)
 		return RMAP_NOMATCH;
 
-	if (strncmp(vrf_name, vrf_id_to_name(path->extra->bgp_orig->vrf_id),
+	if (strncmp(vrf_name, vrf_id_to_name(path->extra->pvrfleak->bgp_orig->vrf_id),
 		    VRF_NAMSIZ)
 	    == 0)
 		return RMAP_MATCH;
