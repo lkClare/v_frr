@@ -147,6 +147,7 @@ struct bgp_sid_info {
 
 /* new structure for EVPN */
 struct bgp_path_info_extra_evpn {
+#define BGP_EVPN_MACIP_TYPE_SVI_IP (1 << 0)
 	/* af specific flags */
 	uint16_t af_flags;
 	union {
@@ -212,8 +213,6 @@ struct bgp_path_info_extra {
 
 	/*For EVPN*/
 	struct bgp_path_info_extra_evpn *pevpn;
-
-#define BGP_EVPN_MACIP_TYPE_SVI_IP (1 << 0)
 
 #ifdef ENABLE_BGP_VNC
 	union {
