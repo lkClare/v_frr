@@ -1308,7 +1308,6 @@ void bgp_zebra_announce(struct bgp_dest *dest, const struct prefix *p,
 	struct bgp_path_info local_info;
 	struct bgp_path_info *mpinfo_cp = &local_info;
 	route_tag_t tag;
-	struct bgp_sid_info *sid_info;
 	mpls_label_t *labels;
 	uint32_t num_labels = 0;
 	mpls_label_t nh_label;
@@ -1348,7 +1347,7 @@ void bgp_zebra_announce(struct bgp_dest *dest, const struct prefix *p,
 	/*
 	 * vrf leaking support (will have only one nexthop)
 	 */
-	if (info->extra && info->extra->bgp_orig)
+	if (info->extra && info->extra->pvrfleak && info->extra->pvrfleak->bgp_orig)
 		nh_othervrf = 1;
 
 	/* Make Zebra API structure. */
@@ -1364,8 +1363,8 @@ void bgp_zebra_announce(struct bgp_dest *dest, const struct prefix *p,
 	    && info->sub_type == BGP_ROUTE_IMPORTED) {
 
 		/* Obtain peer from parent */
-		if (info->extra && info->extra->parent)
-			peer = ((struct bgp_path_info *)(info->extra->parent))
+		if (info->extra && info->extra->pvrfleak && info->extra->pvrfleak->parent)
+			peer = ((struct bgp_path_info *)(info->extra->pvrfleak->parent))
 				       ->peer;
 	}
 
@@ -1553,15 +1552,17 @@ void bgp_zebra_announce(struct bgp_dest *dest, const struct prefix *p,
 
 		api_nh->weight = nh_weight;
 
-		if (mpinfo->extra && !is_evpn &&
-		    bgp_is_valid_label(&labels[0]) &&
-		    !sid_zero(&mpinfo->extra->sid[0].sid)) {
-			sid_info = &mpinfo->extra->sid[0];
+		if (((mpinfo->attr->srv6_l3vpn && !sid_zero(&mpinfo->attr->srv6_l3vpn->sid)) ||
+			(mpinfo->attr->srv6_vpn && !sid_zero(&mpinfo->attr->srv6_vpn->sid))) 
+			&& !is_evpn &&
+		    bgp_is_valid_label(&labels[0])) {
 
-			memcpy(&api_nh->seg6_segs, &sid_info->sid,
+			struct in6_addr *sid_tmp = mpinfo->attr->srv6_l3vpn ? (&mpinfo->attr->srv6_l3vpn->sid) : (&mpinfo->attr->srv6_vpn->sid);
+
+			memcpy(&api_nh->seg6_segs, sid_tmp,
 			       sizeof(api_nh->seg6_segs));
 
-			if (sid_info->transposition_len != 0) {
+			if (mpinfo->attr->srv6_l3vpn && mpinfo->attr->srv6_l3vpn->transposition_len != 0) {
 				mpls_lse_decode(labels[0], &nh_label, &ttl,
 						&exp, &bos);
 
@@ -1573,8 +1574,8 @@ void bgp_zebra_announce(struct bgp_dest *dest, const struct prefix *p,
 				}
 
 				transpose_sid(&api_nh->seg6_segs, nh_label,
-					      sid_info->transposition_offset,
-					      sid_info->transposition_len);
+					      mpinfo->attr->srv6_l3vpn->transposition_offset,
+					      mpinfo->attr->srv6_l3vpn->transposition_len);
 			}
 
 			SET_FLAG(api_nh->flags, ZAPI_NEXTHOP_FLAG_SEG6);
@@ -2436,7 +2437,12 @@ static int rule_notify_owner(ZAPI_CALLBACK_ARGS)
 			/* link bgp_info to bgp_pbr */
 			path = (struct bgp_path_info *)bgp_pbr->path;
 			extra = bgp_path_info_extra_get(path);
-			listnode_add_force(&extra->bgp_fs_iprule,
+			if(!extra->pfs) {
+				extra->pfs = XCALLOC(MTYPE_BGP_ROUTE_EXTRA_FS, sizeof(struct bgp_path_info_extra_fs));
+				extra->pfs->bgp_fs_iprule = NULL;
+				extra->pfs->bgp_fs_pbr = NULL;
+			}
+			listnode_add_force(&extra->pfs->bgp_fs_iprule,
 					   bgp_pbr);
 		}
 		if (BGP_DEBUG(zebra, ZEBRA))
@@ -2539,7 +2545,12 @@ static int ipset_entry_notify_owner(ZAPI_CALLBACK_ARGS)
 		/* link bgp_path_info to bpme */
 		path = (struct bgp_path_info *)bgp_pbime->path;
 		extra = bgp_path_info_extra_get(path);
-		listnode_add_force(&extra->bgp_fs_pbr, bgp_pbime);
+		if(!extra->pfs) {
+			extra->pfs = XCALLOC(MTYPE_BGP_ROUTE_EXTRA_FS, sizeof(struct bgp_path_info_extra_fs));
+			extra->pfs->bgp_fs_iprule = NULL;
+			extra->pfs->bgp_fs_pbr = NULL;
+		}
+		listnode_add_force(&extra->pfs->bgp_fs_pbr, bgp_pbime);
 		}
 		break;
 	case ZAPI_IPSET_ENTRY_FAIL_REMOVE:
